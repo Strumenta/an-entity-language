@@ -1,7 +1,5 @@
 package com.strumenta.entity.parser
 
-import com.andreapivetta.kolor.green
-import com.andreapivetta.kolor.yellow
 import com.strumenta.entity.parser.ast.Entity
 import com.strumenta.entity.parser.ast.Feature
 import com.strumenta.entity.parser.ast.Import
@@ -18,9 +16,19 @@ import com.strumenta.kolasu.serialization.computeIdsForReferencedNodes
 import com.strumenta.kolasu.testing.IgnoreChildren
 import com.strumenta.kolasu.testing.assertASTsAreEqual
 import com.strumenta.kolasu.testing.assertParsingResultsAreEqual
-import com.strumenta.kolasu.traversing.*
+import com.strumenta.kolasu.traversing.findAncestorOfType
+import com.strumenta.kolasu.traversing.findByPosition
+import com.strumenta.kolasu.traversing.searchByPosition
+import com.strumenta.kolasu.traversing.searchByType
+import com.strumenta.kolasu.traversing.walk
+import com.strumenta.kolasu.traversing.walkAncestors
+import com.strumenta.kolasu.traversing.walkChildren
+import com.strumenta.kolasu.traversing.walkDescendants
+import com.strumenta.kolasu.traversing.walkLeavesFirst
 import com.strumenta.kolasu.validation.Issue
 import com.strumenta.kolasu.validation.IssueSeverity
+import com.strumenta.kolorize.green
+import com.strumenta.kolorize.yellow
 import org.eclipse.emf.common.util.URI
 import org.junit.Test
 import java.io.File
@@ -28,7 +36,6 @@ import kotlin.io.path.Path
 
 @Suppress("UNCHECKED_CAST")
 internal class EntityParserDemo {
-
     private val parser: EntityParser = EntityParser()
 
     @Test
@@ -140,10 +147,10 @@ internal class EntityParserDemo {
         // E.g. Demo::SecondEntity::name::type -> StringType
         println(
             "${
-            module.findByPosition(
-                position = module.entities[1].features[0].position!!,
-                selfContained = true,
-            )
+                module.findByPosition(
+                    position = module.entities[1].features[0].position!!,
+                    selfContained = true,
+                )
             }".yellow(),
         )
     }
@@ -163,19 +170,21 @@ internal class EntityParserDemo {
         assertASTsAreEqual(
             Module(
                 name = "demo",
-                imports = mutableListOf(
-                    Import(module = ReferenceByName("external"))
-                ),
-                entities = mutableListOf(
-                    Entity(
-                        name = "FirstEntity",
-                        features = IgnoreChildren(),
+                imports =
+                    mutableListOf(
+                        Import(module = ReferenceByName("external")),
                     ),
-                    Entity(
-                        name = "SecondEntity",
-                        features = IgnoreChildren(),
+                entities =
+                    mutableListOf(
+                        Entity(
+                            name = "FirstEntity",
+                            features = IgnoreChildren(),
+                        ),
+                        Entity(
+                            name = "SecondEntity",
+                            features = IgnoreChildren(),
+                        ),
                     ),
-                ),
             ),
             module(),
         )
@@ -183,73 +192,84 @@ internal class EntityParserDemo {
 
     @Test
     fun testingSupportAssertParsingResultsAreEqualSyntactic() {
-        val actualParsingResult = parser.parse(
-            """
+        val actualParsingResult =
+            parser.parse(
+                """
                 module theModule
                 
                 entity theEntity {
                     theFeature: String
-            """.trimIndent(),
-        ) as ParsingResult<Module>
-        val expectedParsingResult = ParsingResult(
-            issues = listOf(
-                Issue.syntactic(
-                    message = "extraneous input '<EOF>' expecting {'}', ID}",
-                    severity = IssueSeverity.ERROR,
-                    position = pos(4, 22, 4, 22),
-                ),
-                Issue.syntactic(
-                    message = "Recognition exception: null",
-                    severity = IssueSeverity.ERROR,
-                    position = pos(3, 0, 4, 22),
-                ),
-            ),
-            root = Module(
-                name = "theModule",
-                entities = mutableListOf(
-                    Entity(
-                        name = "theEntity",
-                        features = mutableListOf(
-                            Feature(
-                                name = "theFeature",
-                                type = ReferenceByName(name = "String", initialReferred = StringType)
-                            )
-                        )
+                """.trimIndent(),
+            ) as ParsingResult<Module>
+        val expectedParsingResult =
+            ParsingResult(
+                issues =
+                    listOf(
+                        Issue.syntactic(
+                            message = "Extraneous input '<EOF>' expecting {'}', ID}",
+                            severity = IssueSeverity.ERROR,
+                            position = pos(4, 22, 4, 22),
+                        ),
+                        Issue.syntactic(
+                            message = "Recognition exception: null",
+                            severity = IssueSeverity.ERROR,
+                            position = pos(3, 0, 4, 22),
+                        ),
                     ),
-                ),
-            ),
-        )
+                root =
+                    Module(
+                        name = "theModule",
+                        entities =
+                            mutableListOf(
+                                Entity(
+                                    name = "theEntity",
+                                    features =
+                                        mutableListOf(
+                                            Feature(
+                                                name = "theFeature",
+                                                type = ReferenceByName(name = "String", initialReferred = StringType),
+                                            ),
+                                        ),
+                                ),
+                            ),
+                    ),
+            )
         assertParsingResultsAreEqual(expectedParsingResult, actualParsingResult)
     }
 
     @Test
     fun testingSupportAssertParsingResultsAreEqualSemantic() {
-        val actualParsingResult = parser.parse(
-            """
+        val actualParsingResult =
+            parser.parse(
+                """
                 module ExampleModule
                 
                 entity ExampleEntity {
                     target: NotExistingEntity
                 }
-            """.trimIndent(),
-        ) as ParsingResult<Module>
-        val expectedParsingResult = ParsingResult(
-            issues = listOf(),
-            root = Module(
-                name = "ExampleModule",
-                entities = mutableListOf(
-                    Entity(
-                        name = "ExampleEntity",
-                        features = mutableListOf(
-                            Feature(
-                                name = "target",
-                                type = ReferenceByName(name = "NotExistingEntity", initialReferred = null)
+                """.trimIndent(),
+            ) as ParsingResult<Module>
+        val expectedParsingResult =
+            ParsingResult(
+                issues = listOf(),
+                root =
+                    Module(
+                        name = "ExampleModule",
+                        entities =
+                            mutableListOf(
+                                Entity(
+                                    name = "ExampleEntity",
+                                    features =
+                                        mutableListOf(
+                                            Feature(
+                                                name = "target",
+                                                type = ReferenceByName(name = "NotExistingEntity", initialReferred = null),
+                                            ),
+                                        ),
+                                ),
                             ),
-                        ),
                     ),
-                ),
-            ),
-        )
+            )
         assertParsingResultsAreEqual(expectedParsingResult, actualParsingResult)
     }
 
@@ -284,7 +304,8 @@ internal class EntityParserDemo {
     }
 
     private fun module(): Module {
-        val input = """
+        val input =
+            """
             module demo
             
             import external
@@ -297,7 +318,7 @@ internal class EntityParserDemo {
             entity SecondEntity {
                 name: String
             }
-        """.trimIndent()
+            """.trimIndent()
         val ast = this.parser.parse(input) // parse code and build AST
         return ast.root!! as Module // retrieve AST root module
     }

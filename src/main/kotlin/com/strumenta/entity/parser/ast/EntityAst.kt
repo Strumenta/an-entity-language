@@ -1,6 +1,8 @@
 package com.strumenta.entity.parser.ast
 
-import com.strumenta.kolasu.model.*
+import com.strumenta.kolasu.model.Named
+import com.strumenta.kolasu.model.Node
+import com.strumenta.kolasu.model.ReferenceByName
 
 // workspace
 
@@ -11,13 +13,13 @@ data class Workspace(var modules: MutableList<Module> = mutableListOf()) : Node(
 data class Module(
     override val name: String,
     var imports: MutableList<Import> = mutableListOf(),
-    var entities: MutableList<Entity> = mutableListOf()
+    var entities: MutableList<Entity> = mutableListOf(),
 ) : Node(), Named
 
 // imports
 
 data class Import(
-    var module: ReferenceByName<Module>
+    var module: ReferenceByName<Module>,
 ) : Node()
 
 // entities
@@ -32,14 +34,14 @@ data class Entity(
 
 sealed class Symbol(
     override val name: String,
-    open var type: ReferenceByName<Entity>
+    open var type: ReferenceByName<Entity>,
 ) : Node(), Named
 
 // features
 
 data class Feature(
     override val name: String,
-    override var type: ReferenceByName<Entity>
+    override var type: ReferenceByName<Entity>,
 ) : Symbol(name, type)
 
 // operations
@@ -55,7 +57,7 @@ data class Operation(
 
 data class Parameter(
     override val name: String,
-    override var type: ReferenceByName<Entity>
+    override var type: ReferenceByName<Entity>,
 ) : Symbol(name, type)
 
 // statements
@@ -69,7 +71,7 @@ data class BindingStatement(
 
 data class Variable(
     override val name: String,
-    override var type: ReferenceByName<Entity>
+    override var type: ReferenceByName<Entity>,
 ) : Symbol(name, type)
 
 data class ReturnStatement(
@@ -83,29 +85,29 @@ sealed class Expression : Node()
 data class OperatorExpression(
     var left: Expression,
     var right: Expression,
-    var operator: Operator
+    var operator: Operator,
 ) : Expression()
 
 enum class Operator {
     ADDITION,
     SUBTRACTION,
     MULTIPLICATION,
-    DIVISION
+    DIVISION,
 }
 
 data class InvocationExpression(
     var operation: OperationReference,
-    var arguments: MutableList<Expression> = mutableListOf()
+    var arguments: MutableList<Expression> = mutableListOf(),
 ) : Expression()
 
 data class OperationReference(
     var context: Expression? = null,
-    var operation: ReferenceByName<Operation>
+    var operation: ReferenceByName<Operation>,
 ) : Node()
 
 data class ReferenceExpression(
     var context: Expression? = null,
-    var target: ReferenceByName<Symbol>
+    var target: ReferenceByName<Symbol>,
 ) : Expression()
 
 data class ConstructorExpression(
@@ -115,5 +117,5 @@ data class ConstructorExpression(
 
 data class LiteralExpression(
     var value: String,
-    var type: ReferenceByName<Entity>
+    var type: ReferenceByName<Entity>,
 ) : Expression()

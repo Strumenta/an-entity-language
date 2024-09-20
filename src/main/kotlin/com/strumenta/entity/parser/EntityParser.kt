@@ -17,9 +17,10 @@ import org.eclipse.emf.ecore.resource.Resource
 
 class EntityParser(
     val workspace: Workspace = Workspace(),
-    val resolveSymbols: Boolean = true
-) : EcoreEnabledParser<Node, AntlrEntityParser, AntlrEntityParser.Module_declarationContext, KolasuANTLRToken>(ANTLRTokenFactory()) {
-
+    val resolveSymbols: Boolean = true,
+) : EcoreEnabledParser<Node, AntlrEntityParser, AntlrEntityParser.Module_declarationContext, KolasuANTLRToken>(
+        ANTLRTokenFactory(),
+    ) {
     override fun createANTLRLexer(charStream: CharStream): Lexer = AntlrEntityLexer(charStream)
 
     override fun createANTLRParser(tokenStream: TokenStream): AntlrEntityParser = AntlrEntityParser(tokenStream)
@@ -30,10 +31,13 @@ class EntityParser(
         parseTreeRoot: AntlrEntityParser.Module_declarationContext,
         considerPosition: Boolean,
         issues: MutableList<Issue>,
-        source: Source?
+        source: Source?,
     ): Node? = entityParseTreeToAst(parseTreeRoot, workspace, issues)
 
-    override fun postProcessAst(ast: Node, issues: MutableList<Issue>): Node =
+    override fun postProcessAst(
+        ast: Node,
+        issues: MutableList<Issue>,
+    ): Node =
         super.postProcessAst(ast, issues).apply {
             if (resolveSymbols) {
                 entitySemantics(issues).symbolResolver.resolve(workspace)

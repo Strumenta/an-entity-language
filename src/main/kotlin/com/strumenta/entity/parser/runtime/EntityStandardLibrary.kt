@@ -7,13 +7,15 @@ val StringType = Entity(name = "String")
 val IntegerType = Entity("Integer")
 val BooleanType = Entity("Boolean")
 
-val StandardModule = Module(
-    name = "Standard",
-    entities = mutableListOf(
-        StringType,
-        IntegerType,
-        BooleanType
+val StandardModule =
+    Module(
+        name = "Standard",
+        entities =
+            mutableListOf(
+                StringType,
+                IntegerType,
+                BooleanType,
+            ),
     )
-)
 
 // typeFor(StringLiteral::class) { StringType }

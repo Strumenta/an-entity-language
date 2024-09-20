@@ -1,0 +1,6 @@
+digraph G {
+  node[shape=box]
+  MethodCall -> VariableRef
+  MethodCall -> MethodRef
+  MethodCall -> ParametersList
+}

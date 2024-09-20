@@ -112,11 +112,8 @@ class EntityParseTreeToAstTransformer(issues: MutableList<Issue> = mutableListOf
         // invocation expression
         this.registerNodeFactory(AntlrEntityParser.Invocation_expressionContext::class) { ctx ->
             InvocationExpression(
-                operation =
-                    OperationReference(
-                        context = translateOptional(ctx.context),
-                        operation = ReferenceByName(name = ctx.target.text),
-                    ),
+                context = translateCasted(ctx.context),
+                operation = ReferenceByName(name = ctx.target.text),
                 arguments = translateList(ctx.argument_list().arguments),
             )
         }

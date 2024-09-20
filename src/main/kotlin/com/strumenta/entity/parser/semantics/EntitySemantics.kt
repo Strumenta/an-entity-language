@@ -10,7 +10,6 @@ import com.strumenta.entity.parser.ast.IntegerLiteralExpression
 import com.strumenta.entity.parser.ast.InvocationExpression
 import com.strumenta.entity.parser.ast.Module
 import com.strumenta.entity.parser.ast.Operation
-import com.strumenta.entity.parser.ast.OperationReference
 import com.strumenta.entity.parser.ast.Operator
 import com.strumenta.entity.parser.ast.OperatorExpression
 import com.strumenta.entity.parser.ast.ReferenceExpression
@@ -23,17 +22,18 @@ import com.strumenta.entity.parser.runtime.StringType
 import com.strumenta.entity.parser.runtime.builtinTypes
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.model.PossiblyNamed
+import com.strumenta.kolasu.model.ReferenceByName
 import com.strumenta.kolasu.model.previousSamePropertySibling
 import com.strumenta.kolasu.semantics.scope.description.ScopeDescription
 import com.strumenta.kolasu.semantics.scope.description.ScopeDescriptionApi
 import com.strumenta.kolasu.semantics.scope.provider.declarative.DeclarativeScopeProvider
 import com.strumenta.kolasu.semantics.scope.provider.declarative.scopeFor
-import com.strumenta.kolasu.semantics.semantics
 import com.strumenta.kolasu.semantics.symbol.resolver.SymbolResolver
 import com.strumenta.kolasu.traversing.findAncestorOfType
 import com.strumenta.kolasu.traversing.walkDescendants
 import com.strumenta.kolasu.validation.Issue
 import com.strumenta.kolasu.validation.IssueSeverity
+import kotlin.reflect.KProperty1
 
 interface ModuleFinder {
     fun findModule(moduleName: String): Module?
@@ -52,7 +52,8 @@ interface TypeCalculator {
 
     fun setTypeIfNeeded(node: Node): Type? {
         if (node.type == null) {
-            node.type = calculateType(node)
+            val calculatedType = calculateType(node)
+            node.type = calculatedType
         }
         return node.type
     }
@@ -109,10 +110,6 @@ fun symbolResolver(
             }
         },
     )
-//        scopeFor(Symbol::type) {
-//            // all entities from current, imported and standard module
-//            symbolResolver.scopeFrom(it.findAncestorOfType(Module::class.java))
-//        },
     dsp.addRule(
         scopeFor(Operation::type) {
             parent(moduleLevelTypes(it.node))
@@ -125,12 +122,24 @@ fun symbolResolver(
     )
     dsp.addRule(
         scopeFor(ReferenceExpression::target) {
-            parent(entityLevelValues(it.node))
+            if (it.node.context == null) {
+                parent(entityLevelValues(it.node))
+            } else {
+                TODO()
+            }
         },
     )
     dsp.addRule(
-        scopeFor(OperationReference::operation) {
-            parent(entityLevelOperations(it.node))
+        scopeFor(InvocationExpression::operation) {
+            sr.resolve(it.node.context)
+            val type =
+                typeCalculator.getType(it.node.context)
+                    ?: throw IllegalStateException(
+                        "Cannot resolve operation as the type of the context is unknown. " +
+                            "Context: ${it.node.context}",
+                    )
+            val entity = type as? Entity ?: throw IllegalStateException("We cannot only invoke operations on entities")
+            define(entity.operations)
         },
     )
     dsp.addRule(
@@ -164,17 +173,43 @@ internal fun MutableList<Issue>.addIncompatibleTypesError(operatorExpression: Op
     )
 }
 
-object EntityTypeCalculator : TypeCalculator {
+class EntityTypeCalculator : TypeCalculator {
+    var sr: SymbolResolver? = null
+
+    fun getTypeOfReference(
+        refHolder: Node,
+        ref: KProperty1<Node, ReferenceByName<PossiblyNamed>?>,
+    ): Type? {
+        val refValue = ref.getValue(refHolder, ref) ?: return null
+        if (!refValue.resolved) {
+            sr?.resolve(refHolder, ref)
+        }
+        return if (refValue.resolved) {
+            getType(refValue.referred!! as Node)
+        } else {
+            null
+        }
+    }
+
     override fun calculateType(node: Node): Type? {
         return when (node) {
             is OperatorExpression -> {
                 val leftType = getType(node.left)
                 val rightType = getType(node.right)
+                if (leftType == null || rightType == null) {
+                    return null
+                }
                 when (node.operator) {
                     Operator.ADDITION -> {
                         when (val operandTypes = Pair(leftType, rightType)) {
                             Pair(StringType, StringType) -> StringType
                             Pair(StringType, IntegerType) -> StringType
+                            else -> TODO("$operandTypes for expression $node")
+                        }
+                    }
+                    Operator.MULTIPLICATION -> {
+                        when (val operandTypes = Pair(leftType, rightType)) {
+                            Pair(IntegerType, IntegerType) -> IntegerType
                             else -> TODO("$operandTypes for expression $node")
                         }
                     }
@@ -208,8 +243,8 @@ object EntityTypeCalculator : TypeCalculator {
                 IntegerType
             }
             is InvocationExpression -> {
-                if (node.operation.operation.resolved) {
-                    getType(node.operation.operation.referred!!)
+                if (node.operation.resolved) {
+                    getType(node.operation.referred!!)
                 } else {
                     null
                 }
@@ -239,8 +274,10 @@ object EntityTypeCalculator : TypeCalculator {
 
 fun Module.semanticEnrichment(moduleFinder: ModuleFinder): List<Issue> {
     val issues = mutableListOf<Issue>()
-    val typeCalculator = EntityTypeCalculator
-    symbolResolver(moduleFinder, typeCalculator).resolve(this, entireTree = true)
+    val typeCalculator = EntityTypeCalculator()
+    val sr = symbolResolver(moduleFinder, typeCalculator)
+    typeCalculator.sr = sr
+    sr.resolve(this, entireTree = true)
     this.walkDescendants(Expression::class).forEach { expression ->
         typeCalculator.setTypeIfNeeded(expression)
     }

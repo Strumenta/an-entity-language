@@ -97,14 +97,10 @@ enum class Operator {
 }
 
 data class InvocationExpression(
-    var operation: OperationReference,
+    var context: Expression,
+    var operation: ReferenceByName<Operation>,
     var arguments: MutableList<Expression> = mutableListOf(),
 ) : Expression()
-
-data class OperationReference(
-    var context: Expression? = null,
-    var operation: ReferenceByName<Operation>,
-) : Node()
 
 data class ReferenceExpression(
     var context: Expression? = null,

@@ -1,12 +1,13 @@
 package com.strumenta.entity.parser.ast
 
+import com.strumenta.entity.parser.semantics.Type
 import com.strumenta.kolasu.model.Named
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.model.ReferenceByName
 
 // workspace
 
-data class Workspace(var modules: MutableList<Module> = mutableListOf()) : Node()
+// data class Workspace(var modules: MutableList<Module> = mutableListOf()) : Node()
 
 // modules
 
@@ -28,7 +29,7 @@ data class Entity(
     override val name: String,
     var features: MutableList<Feature> = mutableListOf(),
     var operations: MutableList<Operation> = mutableListOf(),
-) : Node(), Named
+) : Node(), Named, Type
 
 // value
 
@@ -80,7 +81,7 @@ data class ReturnStatement(
 
 // expressions
 
-sealed class Expression : Node()
+sealed class Expression : Node(), com.strumenta.kolasu.model.Expression
 
 data class OperatorExpression(
     var left: Expression,

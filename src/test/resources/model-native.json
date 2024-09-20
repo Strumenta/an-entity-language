@@ -41,8 +41,7 @@
           },
           "name": "name",
           "type": {
-            "name": "String",
-            "referred": "\u003cunknown\u003e"
+            "name": "String"
           }
         },
         {
@@ -60,8 +59,7 @@
           },
           "name": "second",
           "type": {
-            "name": "SecondEntity",
-            "referred": "0"
+            "name": "SecondEntity"
           }
         }
       ],
@@ -81,7 +79,6 @@
           "column": 1
         }
       },
-      "#id": "0",
       "features": [
         {
           "#type": "com.strumenta.entity.parser.ast.Feature",
@@ -98,8 +95,7 @@
           },
           "name": "name",
           "type": {
-            "name": "String",
-            "referred": "\u003cunknown\u003e"
+            "name": "String"
           }
         }
       ],

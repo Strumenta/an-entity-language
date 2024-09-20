@@ -436,22 +436,5 @@
       },
       "containment" : true
     } ]
-  }, {
-    "eClass" : "http://www.eclipse.org/emf/2002/Ecore#//EClass",
-    "name" : "Workspace",
-    "eSuperTypes" : [ {
-      "eClass" : "http://www.eclipse.org/emf/2002/Ecore#//EClass",
-      "$ref" : "https://strumenta.com/starlasu/v2#//ASTNode"
-    } ],
-    "eStructuralFeatures" : [ {
-      "eClass" : "http://www.eclipse.org/emf/2002/Ecore#//EReference",
-      "name" : "modules",
-      "upperBound" : -1,
-      "eType" : {
-        "eClass" : "http://www.eclipse.org/emf/2002/Ecore#//EClass",
-        "$ref" : "//Module"
-      },
-      "containment" : true
-    } ]
   } ]
 }

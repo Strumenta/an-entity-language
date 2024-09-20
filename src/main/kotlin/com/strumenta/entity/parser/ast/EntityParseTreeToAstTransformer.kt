@@ -16,14 +16,8 @@ import com.strumenta.kolasu.validation.Issue
 
 fun entityParseTreeToAst(
     root: Module_declarationContext,
-    workspace: Workspace,
     issues: MutableList<Issue>,
-) = EntityParseTreeToAstTransformer(issues).transform(root).apply {
-    if (this is Module) {
-        workspace.modules.add(this)
-        this.parent = workspace
-    }
-}
+) = EntityParseTreeToAstTransformer(issues).transform(root)
 
 class EntityParseTreeToAstTransformer(issues: MutableList<Issue> = mutableListOf()) :
     ParseTreeToASTTransformer(issues) {

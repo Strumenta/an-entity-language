@@ -6,7 +6,6 @@ import com.strumenta.entity.parser.ast.Feature
 import com.strumenta.entity.parser.ast.Module
 import com.strumenta.entity.parser.ast.Operation
 import com.strumenta.entity.parser.ast.Statement
-import com.strumenta.entity.parser.ast.Workspace
 import com.strumenta.kolasu.emf.MetamodelBuilder
 import org.eclipse.emf.ecore.resource.Resource
 import kotlin.reflect.KClass
@@ -18,7 +17,6 @@ object EntityMetamodelBuilder : (Resource?) -> MetamodelBuilder {
 
     private val metaclasses: List<KClass<*>> =
         listOf(
-            Workspace::class,
             Module::class,
             Entity::class,
             Feature::class,

@@ -3,6 +3,7 @@ package com.strumenta.entity.parser.semantics
 import com.strumenta.entity.parser.ast.BindingStatement
 import com.strumenta.entity.parser.ast.ConstructorExpression
 import com.strumenta.entity.parser.ast.Entity
+import com.strumenta.entity.parser.ast.Expression
 import com.strumenta.entity.parser.ast.Import
 import com.strumenta.entity.parser.ast.InvocationExpression
 import com.strumenta.entity.parser.ast.LiteralExpression
@@ -14,28 +15,45 @@ import com.strumenta.entity.parser.ast.OperatorExpression
 import com.strumenta.entity.parser.ast.ReferenceExpression
 import com.strumenta.entity.parser.ast.Statement
 import com.strumenta.entity.parser.ast.Symbol
-import com.strumenta.entity.parser.ast.Workspace
 import com.strumenta.entity.parser.runtime.IntegerType
-import com.strumenta.entity.parser.runtime.StandardModule
 import com.strumenta.entity.parser.runtime.StringType
+import com.strumenta.entity.parser.runtime.builtinTypes
 import com.strumenta.kolasu.model.previousSamePropertySibling
 import com.strumenta.kolasu.semantics.scope
 import com.strumenta.kolasu.semantics.semantics
 import com.strumenta.kolasu.traversing.findAncestorOfType
+import com.strumenta.kolasu.traversing.walkDescendants
 import com.strumenta.kolasu.validation.Issue
 import com.strumenta.kolasu.validation.IssueSeverity
 
-fun entitySemantics(issues: MutableList<Issue> = mutableListOf()) =
+interface ModuleFinder {
+    fun findModule(moduleName: String) : Module?
+}
+
+class SimpleModuleFinder : ModuleFinder {
+    private val modules = mutableMapOf<String, Module>()
+
+    fun registerModule(module: Module) {
+        modules[module.name] = module
+    }
+
+    override fun findModule(moduleName: String): Module? {
+        return modules[moduleName]
+    }
+
+}
+
+fun entitySemantics(moduleFinder: ModuleFinder,
+                    issues: MutableList<Issue> = mutableListOf()) =
     semantics(issues) {
         // symbol resolution
         symbolResolver {
             // resolution rules
             scopeFor(Import::module) {
                 scope {
-                    // all visible modules in workspace
-                    it.findAncestorOfType(Module::class.java)
-                        ?.visibleModules()
-                        ?.forEach(this::define)
+                    moduleFinder.findModule(it.module.name)?.let { importedModule ->
+                        define(importedModule)
+                    }
                 }
             }
             scopeFor(Symbol::type) {
@@ -43,8 +61,11 @@ fun entitySemantics(issues: MutableList<Issue> = mutableListOf()) =
                 symbolResolver.scopeFrom(it.findAncestorOfType(Module::class.java))
             }
             scopeFor(Operation::type) {
-                // all entities from current, imported and standard modules
-                symbolResolver.scopeFrom(it.findAncestorOfType(Module::class.java))
+                // all entities from current and imported modules
+                val scope = symbolResolver.scopeFrom(it.findAncestorOfType(Module::class.java)).apply {
+                    builtinTypes.forEach(this::define)
+                }
+                scope
             }
             scopeFor(OperationReference::operation) {
                 if (it.context != null) {
@@ -113,7 +134,7 @@ fun entitySemantics(issues: MutableList<Issue> = mutableListOf()) =
                             parent =
                                 scope {
                                     // entities from standard module
-                                    StandardModule.entities.forEach(this::define)
+                                    builtinTypes.forEach(this::define)
                                 }
                         }
                 }
@@ -202,12 +223,6 @@ fun entitySemantics(issues: MutableList<Issue> = mutableListOf()) =
         }
     }
 
-internal fun Module.visibleModules() =
-    this.findAncestorOfType(Workspace::class.java)
-        ?.modules
-        ?.filter { it.name != this.name }
-        ?: emptyList()
-
 internal fun Statement.previousStatements() =
     sequence {
         var precedingStatement = this@previousStatements.previousSamePropertySibling
@@ -225,4 +240,14 @@ internal fun MutableList<Issue>.addIncompatibleTypesError(operatorExpression: Op
             position = operatorExpression.position,
         ),
     )
+}
+
+fun Module.semanticEnrichment(moduleFinder: ModuleFinder) : List<Issue> {
+    val issues = mutableListOf<Issue>()
+    val es = entitySemantics(moduleFinder, issues)
+    es.symbolResolver.resolve(this)
+    this.walkDescendants(Expression::class).forEach {
+        it.type = es.typeComputer.typeFor(it) as? Type
+    }
+    return issues
 }

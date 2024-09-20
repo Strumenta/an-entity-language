@@ -1,33 +1,33 @@
 package com.strumenta.entity.parser.semantics
 
-import com.strumenta.entity.parser.ast.BindingStatement
 import com.strumenta.entity.parser.ast.ConstructorExpression
 import com.strumenta.entity.parser.ast.Entity
-import com.strumenta.entity.parser.ast.Expression
+import com.strumenta.entity.parser.ast.Feature
 import com.strumenta.entity.parser.ast.Import
-import com.strumenta.entity.parser.ast.InvocationExpression
 import com.strumenta.entity.parser.ast.LiteralExpression
 import com.strumenta.entity.parser.ast.Module
 import com.strumenta.entity.parser.ast.Operation
 import com.strumenta.entity.parser.ast.OperationReference
-import com.strumenta.entity.parser.ast.Operator
 import com.strumenta.entity.parser.ast.OperatorExpression
 import com.strumenta.entity.parser.ast.ReferenceExpression
 import com.strumenta.entity.parser.ast.Statement
-import com.strumenta.entity.parser.ast.Symbol
-import com.strumenta.entity.parser.runtime.IntegerType
-import com.strumenta.entity.parser.runtime.StringType
+import com.strumenta.entity.parser.ast.Variable
 import com.strumenta.entity.parser.runtime.builtinTypes
+import com.strumenta.kolasu.model.Node
+import com.strumenta.kolasu.model.PossiblyNamed
 import com.strumenta.kolasu.model.previousSamePropertySibling
-import com.strumenta.kolasu.semantics.scope
+import com.strumenta.kolasu.semantics.scope.description.ScopeDescription
+import com.strumenta.kolasu.semantics.scope.description.ScopeDescriptionApi
+import com.strumenta.kolasu.semantics.scope.provider.declarative.DeclarativeScopeProvider
+import com.strumenta.kolasu.semantics.scope.provider.declarative.scopeFor
 import com.strumenta.kolasu.semantics.semantics
+import com.strumenta.kolasu.semantics.symbol.resolver.SymbolResolver
 import com.strumenta.kolasu.traversing.findAncestorOfType
-import com.strumenta.kolasu.traversing.walkDescendants
 import com.strumenta.kolasu.validation.Issue
 import com.strumenta.kolasu.validation.IssueSeverity
 
 interface ModuleFinder {
-    fun findModule(moduleName: String) : Module?
+    fun findModule(moduleName: String): Module?
 }
 
 class SimpleModuleFinder : ModuleFinder {
@@ -40,188 +40,92 @@ class SimpleModuleFinder : ModuleFinder {
     override fun findModule(moduleName: String): Module? {
         return modules[moduleName]
     }
-
 }
 
-fun entitySemantics(moduleFinder: ModuleFinder,
-                    issues: MutableList<Issue> = mutableListOf()) =
-    semantics(issues) {
-        // symbol resolution
-        symbolResolver {
-            // resolution rules
-            scopeFor(Import::module) {
-                scope {
-                    moduleFinder.findModule(it.module.name)?.let { importedModule ->
-                        define(importedModule)
+val scopeProvider =
+    DeclarativeScopeProvider(
+//    scopeFor(Todo::prerequisite) {
+//        (it.node.parent as TodoProject).todos.forEach {
+//            define(it)
+//        }
+//    }
+    )
+
+fun symbolResolver(moduleFinder: ModuleFinder): SymbolResolver {
+    val dsp = DeclarativeScopeProvider()
+    val sr = SymbolResolver(dsp)
+
+    fun moduleLevelTypes(ctx: Node): ScopeDescription =
+        ScopeDescription().apply {
+            val module = ctx.findAncestorOfType(Module::class.java)
+            module?.let { m ->
+                define(m.entities)
+                m.imports.forEach { import ->
+                    sr.resolve(import)
+                    import.module.referred?.entities?.forEach {
+                        define(it)
                     }
                 }
             }
-            scopeFor(Symbol::type) {
-                // all entities from current, imported and standard module
-                symbolResolver.scopeFrom(it.findAncestorOfType(Module::class.java))
-            }
-            scopeFor(Operation::type) {
-                // all entities from current and imported modules
-                val scope = symbolResolver.scopeFrom(it.findAncestorOfType(Module::class.java)).apply {
-                    builtinTypes.forEach(this::define)
-                }
-                scope
-            }
-            scopeFor(OperationReference::operation) {
-                if (it.context != null) {
-                    // all operations from the context type, i.e. entity
-                    symbolResolver.scopeFrom(typeComputer.typeFor(it.context))
-                } else {
-                    scope {
-                        // all operations from the containing entity
-                        it.findAncestorOfType(Entity::class.java)?.operations?.forEach(this::define)
-                    }
-                }
-            }
-            scopeFor(ReferenceExpression::target) {
-                if (it.context != null) {
-                    // all features from the context type, i.e. entity
-                    symbolResolver.scopeFrom(typeComputer.typeFor(it.context))
-                } else {
-                    scope {
-                        // all previously declared variables from the container operation
-                        it.findAncestorOfType(Statement::class.java)
-                            ?.previousStatements()
-                            ?.filterIsInstance<BindingStatement>()
-                            ?.map(BindingStatement::variable)
-                            ?.forEach(this::define)
-                        parent =
-                            scope {
-                                // all parameters from the container operation
-                                it.findAncestorOfType(Operation::class.java)
-                                    ?.parameters
-                                    ?.forEach(this::define)
-                                parent =
-                                    scope {
-                                        // all features from the container entity
-                                        it.findAncestorOfType(Entity::class.java)
-                                            ?.features
-                                            ?.forEach(this::define)
-                                    }
-                            }
-                    }
-                }
-            }
-            scopeFor(ConstructorExpression::entity) {
-                // all entities from current, imported and standard modules
-                symbolResolver.scopeFrom(it.findAncestorOfType(Module::class.java))
-            }
-            scopeFor(LiteralExpression::type) {
-                // all entities from current, imported and standard modules
-                symbolResolver.scopeFrom(it.findAncestorOfType(Module::class.java))
-            }
-            // construction rules (scope-wide representations for nodes)
-            scopeFrom(Module::class) {
-                scope {
-                    // entities from current module
-                    it.entities.forEach(this::define)
-                    parent =
-                        scope {
-                            // entities from imported modules
-                            it.imports.flatMap { import ->
-                                // resolve module (if not done already)
-                                import.module
-                                    .takeUnless { moduleRef -> moduleRef.resolved }
-                                    ?.apply { symbolResolver.resolve(Import::module, import) }
-                                // retrieve all entities from the referenced module
-                                import.module.referred?.entities ?: emptyList()
-                            }.forEach(this::define)
-                            parent =
-                                scope {
-                                    // entities from standard module
-                                    builtinTypes.forEach(this::define)
-                                }
-                        }
-                }
-            }
-            scopeFrom(Entity::class) {
-                scope {
-                    // all declared features
-                    it.features.forEach(this::define)
-                    // all declared operations
-                    it.operations.forEach(this::define)
-                }
-            }
+            builtinTypes.forEach(this::define)
         }
-        // type computation
-        typeComputer {
-            typeFor(Operation::class) {
-                // resolve return type reference (if not done already)
-                it.type
-                    ?.takeUnless { typeRef -> typeRef.resolved }
-                    ?.apply { symbolResolver.resolve(Operation::type, it) }
-                // return the referenced entity (null means void)
-                it.type?.referred
-            }
-            typeFor(Symbol::class) {
-                // resolve type reference (if not done already)
-                it.type
-                    .takeUnless { typeRef -> typeRef.resolved }
-                    ?.apply { symbolResolver.resolve(Symbol::type, it) }
-                // return the referenced entity
-                it.type.referred
-            }
-            typeFor(OperatorExpression::class) {
-                // compute type of the left operand
-                val leftOperandType = typeComputer.typeFor(it.left)
-                // compute type of the right operand
-                val rightOperandType = typeComputer.typeFor(it.right)
-                // handle different operators/operands combinations
-                when {
-                    // all operations can be used with integer operands
-                    leftOperandType == IntegerType &&
-                        rightOperandType == IntegerType -> IntegerType
-                    // only addition can be used with string operands (for concatenation)
-                    leftOperandType == StringType &&
-                        rightOperandType == StringType &&
-                        it.operator == Operator.ADDITION -> StringType
-                    // no operators can be used otherwise (signal error and return null)
-                    else -> issues.addIncompatibleTypesError(it).let { null }
-                }
-            }
-            typeFor(InvocationExpression::class) {
-                // return the type of the referenced operation (OperationReference)
-                typeComputer.typeFor(it.operation)
-            }
-            typeFor(OperationReference::class) {
-                // resolve operation reference (if not done already)
-                it.operation
-                    .takeUnless { operationRef -> operationRef.resolved }
-                    ?.apply { symbolResolver.resolve(OperationReference::operation, it) }
-                // return the type of the referenced operation
-                typeComputer.typeFor(it.operation.referred)
-            }
-            typeFor(ReferenceExpression::class) {
-                // resolve symbol reference (if not done already)
-                it.target
-                    .takeUnless { symbolRef -> symbolRef.resolved }
-                    ?.apply { symbolResolver.resolve(ReferenceExpression::target, it) }
-                // return the type of the referenced symbol
-                typeComputer.typeFor(it.target.referred)
-            }
-            typeFor(ConstructorExpression::class) {
-                // resolve entity reference (if not done already)
-                it.entity
-                    .takeUnless { entityRef -> entityRef.resolved }
-                    ?.apply { symbolResolver.resolve(ConstructorExpression::entity, it) }
-                // return the referenced entity
-                it.entity.referred
-            }
-            typeFor(LiteralExpression::class) {
-                // resolve type reference (if not done already)
-                it.type
-                    .takeUnless { typeRef -> typeRef.resolved }
-                    ?.apply { symbolResolver.resolve(LiteralExpression::type, it) }
-                // return the referenced entity
-                it.type.referred
-            }
+
+    fun entityLevelValues(ctx: Node): ScopeDescription =
+        ScopeDescription().apply {
+            define(ctx.findAncestorOfType(Entity::class.java)?.features)
         }
-    }
+
+    fun entityLevelOperations(ctx: Node): ScopeDescription =
+        ScopeDescription().apply {
+            define(ctx.findAncestorOfType(Entity::class.java)?.operations)
+        }
+
+    dsp.addRule(
+        scopeFor(Import::module) {
+            moduleFinder.findModule(it.node.module.name)?.let { importedModule ->
+                define(importedModule)
+            }
+        },
+    )
+//        scopeFor(Symbol::type) {
+//            // all entities from current, imported and standard module
+//            symbolResolver.scopeFrom(it.findAncestorOfType(Module::class.java))
+//        },
+    dsp.addRule(
+        scopeFor(Operation::type) {
+            parent(moduleLevelTypes(it.node))
+        },
+    )
+    dsp.addRule(
+        scopeFor(Feature::type) {
+            parent(moduleLevelTypes(it.node))
+        },
+    )
+    dsp.addRule(
+        scopeFor(ReferenceExpression::target) {
+            parent(entityLevelValues(it.node))
+        },
+    )
+    dsp.addRule(
+        scopeFor(LiteralExpression::type) {
+        },
+    )
+    dsp.addRule(
+        scopeFor(OperationReference::operation) {
+            parent(entityLevelOperations(it.node))
+        },
+    )
+    dsp.addRule(
+        scopeFor(Variable::type) {
+        },
+    )
+    dsp.addRule(
+        scopeFor(ConstructorExpression::entity) {
+            parent(moduleLevelTypes(it.node))
+        },
+    )
+    return sr
+}
 
 internal fun Statement.previousStatements() =
     sequence {
@@ -242,12 +146,12 @@ internal fun MutableList<Issue>.addIncompatibleTypesError(operatorExpression: Op
     )
 }
 
-fun Module.semanticEnrichment(moduleFinder: ModuleFinder) : List<Issue> {
+fun Module.semanticEnrichment(moduleFinder: ModuleFinder): List<Issue> {
     val issues = mutableListOf<Issue>()
-    val es = entitySemantics(moduleFinder, issues)
-    es.symbolResolver.resolve(this)
-    this.walkDescendants(Expression::class).forEach {
-        it.type = es.typeComputer.typeFor(it) as? Type
-    }
+    symbolResolver(moduleFinder).resolve(this, entireTree = true)
     return issues
+}
+
+fun ScopeDescriptionApi.define(values: List<PossiblyNamed>?) {
+    values?.forEach { define(it) }
 }

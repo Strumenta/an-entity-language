@@ -227,7 +227,7 @@ internal class EntityParserDemo {
                                         mutableListOf(
                                             Feature(
                                                 name = "theFeature",
-                                                type = ReferenceByName(name = "String", initialReferred = StringType),
+                                                type = ReferenceByName(name = "String", initialReferred = null),
                                             ),
                                         ),
                                 ),

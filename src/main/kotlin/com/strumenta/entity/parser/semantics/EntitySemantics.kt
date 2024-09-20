@@ -1,17 +1,25 @@
 package com.strumenta.entity.parser.semantics
 
+import com.strumenta.entity.parser.ast.BooleanLiteralExpression
 import com.strumenta.entity.parser.ast.ConstructorExpression
 import com.strumenta.entity.parser.ast.Entity
+import com.strumenta.entity.parser.ast.Expression
 import com.strumenta.entity.parser.ast.Feature
 import com.strumenta.entity.parser.ast.Import
-import com.strumenta.entity.parser.ast.LiteralExpression
+import com.strumenta.entity.parser.ast.IntegerLiteralExpression
+import com.strumenta.entity.parser.ast.InvocationExpression
 import com.strumenta.entity.parser.ast.Module
 import com.strumenta.entity.parser.ast.Operation
 import com.strumenta.entity.parser.ast.OperationReference
+import com.strumenta.entity.parser.ast.Operator
 import com.strumenta.entity.parser.ast.OperatorExpression
 import com.strumenta.entity.parser.ast.ReferenceExpression
 import com.strumenta.entity.parser.ast.Statement
+import com.strumenta.entity.parser.ast.StringLiteralExpression
 import com.strumenta.entity.parser.ast.Variable
+import com.strumenta.entity.parser.runtime.BooleanType
+import com.strumenta.entity.parser.runtime.IntegerType
+import com.strumenta.entity.parser.runtime.StringType
 import com.strumenta.entity.parser.runtime.builtinTypes
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.model.PossiblyNamed
@@ -23,11 +31,31 @@ import com.strumenta.kolasu.semantics.scope.provider.declarative.scopeFor
 import com.strumenta.kolasu.semantics.semantics
 import com.strumenta.kolasu.semantics.symbol.resolver.SymbolResolver
 import com.strumenta.kolasu.traversing.findAncestorOfType
+import com.strumenta.kolasu.traversing.walkDescendants
 import com.strumenta.kolasu.validation.Issue
 import com.strumenta.kolasu.validation.IssueSeverity
 
 interface ModuleFinder {
     fun findModule(moduleName: String): Module?
+}
+
+interface TypeCalculator {
+    fun getType(node: Node): Type? {
+        return setTypeIfNeeded(node)
+    }
+
+    fun strictlyGetType(node: Node): Type {
+        return setTypeIfNeeded(node) ?: throw IllegalStateException("Cannot get type for node $node")
+    }
+
+    fun calculateType(node: Node): Type?
+
+    fun setTypeIfNeeded(node: Node): Type? {
+        if (node.type == null) {
+            node.type = calculateType(node)
+        }
+        return node.type
+    }
 }
 
 class SimpleModuleFinder : ModuleFinder {
@@ -42,16 +70,10 @@ class SimpleModuleFinder : ModuleFinder {
     }
 }
 
-val scopeProvider =
-    DeclarativeScopeProvider(
-//    scopeFor(Todo::prerequisite) {
-//        (it.node.parent as TodoProject).todos.forEach {
-//            define(it)
-//        }
-//    }
-    )
-
-fun symbolResolver(moduleFinder: ModuleFinder): SymbolResolver {
+fun symbolResolver(
+    moduleFinder: ModuleFinder,
+    typeCalculator: TypeCalculator,
+): SymbolResolver {
     val dsp = DeclarativeScopeProvider()
     val sr = SymbolResolver(dsp)
 
@@ -107,10 +129,6 @@ fun symbolResolver(moduleFinder: ModuleFinder): SymbolResolver {
         },
     )
     dsp.addRule(
-        scopeFor(LiteralExpression::type) {
-        },
-    )
-    dsp.addRule(
         scopeFor(OperationReference::operation) {
             parent(entityLevelOperations(it.node))
         },
@@ -146,9 +164,86 @@ internal fun MutableList<Issue>.addIncompatibleTypesError(operatorExpression: Op
     )
 }
 
+object EntityTypeCalculator : TypeCalculator {
+    override fun calculateType(node: Node): Type? {
+        return when (node) {
+            is OperatorExpression -> {
+                val leftType = getType(node.left)
+                val rightType = getType(node.right)
+                when (node.operator) {
+                    Operator.ADDITION -> {
+                        when (val operandTypes = Pair(leftType, rightType)) {
+                            Pair(StringType, StringType) -> StringType
+                            Pair(StringType, IntegerType) -> StringType
+                            else -> TODO("$operandTypes for expression $node")
+                        }
+                    }
+                    else -> TODO(node.operator.toString())
+                }
+            }
+            is ReferenceExpression -> {
+                if (node.target.resolved) {
+                    getType(node.target.referred!!)
+                } else {
+                    null
+                }
+            }
+            is Feature -> {
+                if (node.type.resolved) {
+                    getType(node.type.referred!!)
+                } else {
+                    null
+                }
+            }
+            is Entity -> {
+                node
+            }
+            is StringLiteralExpression -> {
+                StringType
+            }
+            is BooleanLiteralExpression -> {
+                BooleanType
+            }
+            is IntegerLiteralExpression -> {
+                IntegerType
+            }
+            is InvocationExpression -> {
+                if (node.operation.operation.resolved) {
+                    getType(node.operation.operation.referred!!)
+                } else {
+                    null
+                }
+            }
+            is Operation -> {
+                if (node.type == null) {
+                    UnitType
+                } else {
+                    if (node.type!!.resolved) {
+                        getType(node.type!!.referred!!)
+                    } else {
+                        null
+                    }
+                }
+            }
+            is ConstructorExpression -> {
+                if (node.entity.resolved) {
+                    getType(node.entity.referred!!)
+                } else {
+                    null
+                }
+            }
+            else -> TODO("Does not know how to calculate the type of $node")
+        }
+    }
+}
+
 fun Module.semanticEnrichment(moduleFinder: ModuleFinder): List<Issue> {
     val issues = mutableListOf<Issue>()
-    symbolResolver(moduleFinder).resolve(this, entireTree = true)
+    val typeCalculator = EntityTypeCalculator
+    symbolResolver(moduleFinder, typeCalculator).resolve(this, entireTree = true)
+    this.walkDescendants(Expression::class).forEach { expression ->
+        typeCalculator.setTypeIfNeeded(expression)
+    }
     return issues
 }
 

@@ -4,7 +4,6 @@ import com.strumenta.entity.parser.ast.Entity
 import com.strumenta.entity.parser.ast.Feature
 import com.strumenta.entity.parser.ast.Import
 import com.strumenta.entity.parser.ast.Module
-import com.strumenta.entity.parser.runtime.StringType
 import com.strumenta.kolasu.emf.saveMetamodel
 import com.strumenta.kolasu.emf.saveModel
 import com.strumenta.kolasu.model.Node

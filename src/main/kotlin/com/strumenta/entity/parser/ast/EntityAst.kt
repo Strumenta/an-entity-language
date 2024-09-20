@@ -116,7 +116,10 @@ data class ConstructorExpression(
     var arguments: MutableList<Expression> = mutableListOf(),
 ) : Expression()
 
-data class LiteralExpression(
-    var value: String,
-    var type: ReferenceByName<Entity>,
-) : Expression()
+sealed class LiteralExpression : Expression()
+
+data class StringLiteralExpression(var value: String) : LiteralExpression()
+
+data class BooleanLiteralExpression(var value: Boolean) : LiteralExpression()
+
+data class IntegerLiteralExpression(var value: Long) : LiteralExpression()

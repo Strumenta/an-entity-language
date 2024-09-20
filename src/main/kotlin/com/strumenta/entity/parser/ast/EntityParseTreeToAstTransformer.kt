@@ -3,9 +3,6 @@ package com.strumenta.entity.parser.ast
 import com.strumenta.entity.parser.AntlrEntityLexer
 import com.strumenta.entity.parser.AntlrEntityParser
 import com.strumenta.entity.parser.AntlrEntityParser.Module_declarationContext
-import com.strumenta.entity.parser.runtime.BooleanType
-import com.strumenta.entity.parser.runtime.IntegerType
-import com.strumenta.entity.parser.runtime.StringType
 import com.strumenta.kolasu.mapping.ParseTreeToASTTransformer
 import com.strumenta.kolasu.mapping.translateCasted
 import com.strumenta.kolasu.mapping.translateList
@@ -139,16 +136,12 @@ class EntityParseTreeToAstTransformer(issues: MutableList<Issue> = mutableListOf
         }
         // literal expression
         this.registerNodeFactory(AntlrEntityParser.Literal_expressionContext::class) { ctx ->
-            LiteralExpression(
-                value = ctx.value.text,
-                type =
-                    when (ctx.value.type) {
-                        AntlrEntityLexer.STRING -> ReferenceByName(name = StringType.name, initialReferred = StringType)
-                        AntlrEntityLexer.INTEGER -> ReferenceByName(IntegerType.name, initialReferred = IntegerType)
-                        AntlrEntityLexer.BOOLEAN -> ReferenceByName(BooleanType.name, initialReferred = BooleanType)
-                        else -> error("Unknown literal type...")
-                    },
-            )
+            when (ctx.value.type) {
+                AntlrEntityLexer.STRING -> StringLiteralExpression(ctx.value.text)
+                AntlrEntityLexer.INTEGER -> IntegerLiteralExpression(ctx.value.text.toLong())
+                AntlrEntityLexer.BOOLEAN -> BooleanLiteralExpression(ctx.value.text.toBoolean())
+                else -> error("Unknown literal type...")
+            }
         }
     }
 }

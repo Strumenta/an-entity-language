@@ -8,11 +8,13 @@ import com.strumenta.entity.parser.ast.Module
 import com.strumenta.entity.parser.ast.Operation
 import com.strumenta.entity.parser.ast.OperationReference
 import com.strumenta.entity.parser.ast.ReferenceExpression
+import com.strumenta.entity.parser.ast.Variable
 import com.strumenta.kolasu.model.Expression
 import com.strumenta.kolasu.model.KReferenceByName
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.model.ReferenceByName
 import com.strumenta.kolasu.model.kReferenceByNameProperties
+import com.strumenta.kolasu.testing.assertReferencesNotResolved
 import com.strumenta.kolasu.testing.assertReferencesResolved
 import com.strumenta.kolasu.traversing.walkChildren
 import com.strumenta.kolasu.traversing.walkDescendants
@@ -51,16 +53,15 @@ class EntitySemanticsTest {
                 """.trimIndent(),
             ).root!! as Module
         simpleModuleFinder.registerModule(personModule)
-//        personModule.semanticEnrichment(simpleModuleFinder)
-//
-//        // address module is currently not included in the workspace
-//        // hence symbol resolution fails to resolve references to its symbols
-//        personModule.assertReferencesNotResolved(forProperty = Import::module)
-//        personModule.assertReferencesResolved(forProperty = Operation::type)
-//        personModule.assertReferencesResolved(forProperty = ConstructorExpression::entity)
-//        personModule.assertReferencesNotResolved(forProperty = Variable::type)
-//        personModule.assertSomeReferencesNotResolved(forProperty = Feature::type)
-//        personModule.assertSomeReferencesNotResolved(forProperty = OperationReference::operation)
+        personModule.semanticEnrichment(simpleModuleFinder)
+
+        // address module is currently not included in the workspace
+        // hence symbol resolution fails to resolve references to its symbols
+        personModule.assertReferencesNotResolved(forProperty = Import::module)
+        personModule.assertReferencesResolved(forProperty = Operation::type)
+        personModule.assertReferencesResolved(forProperty = ConstructorExpression::entity)
+        personModule.assertReferencesNotResolved(forProperty = Variable::type)
+        personModule.assertSomeReferencesNotResolved(forProperty = Feature::type)
         val addressModule =
             parser.parse(
                 """
@@ -169,7 +170,7 @@ private fun Node.containsReferencesNotResolved(forProperty: KReferenceByName<out
 }
 
 private fun Node.assertAllExpressionsHaveType() {
-    val expressionsWithoutType = this.walkDescendants(Expression::class).filter { it.type == null }.toList()
+    val expressionsWithoutType = this.walkDescendants(com.strumenta.entity.parser.ast.Expression::class).filter { it.type == null }.toList()
     assert(expressionsWithoutType.isEmpty()) {
         "Some expressions have no type: ${expressionsWithoutType.joinToString(", ")}"
     }

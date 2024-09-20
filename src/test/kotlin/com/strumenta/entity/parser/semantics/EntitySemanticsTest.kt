@@ -8,7 +8,6 @@ import com.strumenta.entity.parser.ast.InvocationExpression
 import com.strumenta.entity.parser.ast.Module
 import com.strumenta.entity.parser.ast.Operation
 import com.strumenta.entity.parser.ast.ReferenceExpression
-import com.strumenta.kolasu.model.Expression
 import com.strumenta.kolasu.model.KReferenceByName
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.model.ReferenceByName

@@ -2,6 +2,7 @@ package com.strumenta.entity.parser.semantics
 
 import com.strumenta.entity.parser.EntityParser
 import com.strumenta.entity.parser.ast.ConstructorExpression
+import com.strumenta.entity.parser.ast.Entity
 import com.strumenta.entity.parser.ast.Feature
 import com.strumenta.entity.parser.ast.Import
 import com.strumenta.entity.parser.ast.InvocationExpression
@@ -15,6 +16,7 @@ import com.strumenta.kolasu.model.kReferenceByNameProperties
 import com.strumenta.kolasu.testing.assertReferencesResolved
 import com.strumenta.kolasu.traversing.walkChildren
 import com.strumenta.kolasu.traversing.walkDescendants
+import kotlin.test.assertEquals
 import org.junit.Test
 import kotlin.test.assertTrue
 import kotlin.test.fail
@@ -46,6 +48,11 @@ class EntitySemanticsTest {
         simpleModuleFinder.registerModule(animalsModule)
         animalsModule.semanticEnrichment(simpleModuleFinder)
         animalsModule.assertReferencesResolved(forProperty = InvocationExpression::operation)
+        val invocation = animalsModule.walkDescendants(InvocationExpression::class).first()
+        assertEquals("move", invocation.operation.name)
+        val entityDog = animalsModule.walkDescendants(Entity::class).find { it.name == "Dog" }!!
+        assertEquals(entityDog, invocation.context.type)
+        assertEquals(entityDog, invocation.operation.referred!!.parent)
     }
 
     @Test

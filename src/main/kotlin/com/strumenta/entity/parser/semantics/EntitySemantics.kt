@@ -15,6 +15,7 @@ import com.strumenta.entity.parser.ast.OperatorExpression
 import com.strumenta.entity.parser.ast.ReferenceExpression
 import com.strumenta.entity.parser.ast.Statement
 import com.strumenta.entity.parser.ast.StringLiteralExpression
+import com.strumenta.entity.parser.ast.Symbol
 import com.strumenta.entity.parser.ast.Variable
 import com.strumenta.entity.parser.runtime.BooleanType
 import com.strumenta.entity.parser.runtime.IntegerType
@@ -33,6 +34,7 @@ import com.strumenta.kolasu.traversing.findAncestorOfType
 import com.strumenta.kolasu.traversing.walkDescendants
 import com.strumenta.kolasu.validation.Issue
 import com.strumenta.kolasu.validation.IssueSeverity
+import kotlin.reflect.KMutableProperty1
 import kotlin.reflect.KProperty1
 
 interface ModuleFinder {
@@ -176,13 +178,13 @@ internal fun MutableList<Issue>.addIncompatibleTypesError(operatorExpression: Op
 class EntityTypeCalculator : TypeCalculator {
     var sr: SymbolResolver? = null
 
-    fun getTypeOfReference(
-        refHolder: Node,
-        ref: KProperty1<Node, ReferenceByName<PossiblyNamed>?>,
+    private fun <T:Node,S:PossiblyNamed>getTypeOfReference(
+        refHolder: T,
+        ref: KProperty1<T, ReferenceByName<S>?>,
     ): Type? {
         val refValue = ref.getValue(refHolder, ref) ?: return null
         if (!refValue.resolved) {
-            sr?.resolve(refHolder, ref)
+            sr?.resolve(refHolder, ref as KProperty1<Node, ReferenceByName<PossiblyNamed>?>)
         }
         return if (refValue.resolved) {
             getType(refValue.referred!! as Node)
@@ -217,18 +219,10 @@ class EntityTypeCalculator : TypeCalculator {
                 }
             }
             is ReferenceExpression -> {
-                if (node.target.resolved) {
-                    getType(node.target.referred!!)
-                } else {
-                    null
-                }
+                getTypeOfReference(node, ReferenceExpression::target)
             }
             is Feature -> {
-                if (node.type.resolved) {
-                    getType(node.type.referred!!)
-                } else {
-                    null
-                }
+                getTypeOfReference(node, Feature::type)
             }
             is Entity -> {
                 node
@@ -243,33 +237,22 @@ class EntityTypeCalculator : TypeCalculator {
                 IntegerType
             }
             is InvocationExpression -> {
-                if (node.operation.resolved) {
-                    getType(node.operation.referred!!)
-                } else {
-                    null
-                }
+                getTypeOfReference(node, InvocationExpression::operation)
             }
             is Operation -> {
                 if (node.type == null) {
                     UnitType
                 } else {
-                    if (node.type!!.resolved) {
-                        getType(node.type!!.referred!!)
-                    } else {
-                        null
-                    }
+                    getTypeOfReference(node, Operation::type)
                 }
             }
             is ConstructorExpression -> {
-                if (node.entity.resolved) {
-                    getType(node.entity.referred!!)
-                } else {
-                    null
-                }
+                getTypeOfReference(node, ConstructorExpression::entity)
             }
             else -> TODO("Does not know how to calculate the type of $node")
         }
     }
+
 }
 
 fun Module.semanticEnrichment(moduleFinder: ModuleFinder): List<Issue> {

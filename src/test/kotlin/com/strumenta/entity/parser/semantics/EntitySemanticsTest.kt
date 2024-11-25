@@ -16,8 +16,8 @@ import com.strumenta.kolasu.model.kReferenceByNameProperties
 import com.strumenta.kolasu.testing.assertReferencesResolved
 import com.strumenta.kolasu.traversing.walkChildren
 import com.strumenta.kolasu.traversing.walkDescendants
-import kotlin.test.assertEquals
 import org.junit.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
@@ -48,11 +48,24 @@ class EntitySemanticsTest {
         simpleModuleFinder.registerModule(animalsModule)
         animalsModule.semanticEnrichment(simpleModuleFinder)
         animalsModule.assertReferencesResolved(forProperty = InvocationExpression::operation)
+
+        // we get the only invocation we have in the code
         val invocation = animalsModule.walkDescendants(InvocationExpression::class).first()
         assertEquals("move", invocation.operation.name)
+        assertEquals("new Dog()", invocation.context.sourceText)
+
+        // We find the Dog entity
         val entityDog = animalsModule.walkDescendants(Entity::class).find { it.name == "Dog" }!!
+
+        // We verify that the type of "new Dog()" is indeed Dog
         assertEquals(entityDog, invocation.context.type)
-        assertEquals(entityDog, invocation.operation.referred!!.parent)
+
+        // Now, to check we refer to the right "move" method, we get the entity Dog and
+        // find the "move" method there, then we check our invocation is pointing to it
+        val dogMoveMethod =
+            entityDog.operations.find { it.name == "move" }
+                ?: throw IllegalStateException("move method not found in Dog")
+        assertEquals(dogMoveMethod, invocation.operation.referred!!)
     }
 
     @Test

@@ -15,7 +15,6 @@ import com.strumenta.entity.parser.ast.OperatorExpression
 import com.strumenta.entity.parser.ast.ReferenceExpression
 import com.strumenta.entity.parser.ast.Statement
 import com.strumenta.entity.parser.ast.StringLiteralExpression
-import com.strumenta.entity.parser.ast.Symbol
 import com.strumenta.entity.parser.ast.Variable
 import com.strumenta.entity.parser.runtime.BooleanType
 import com.strumenta.entity.parser.runtime.IntegerType
@@ -34,7 +33,6 @@ import com.strumenta.kolasu.traversing.findAncestorOfType
 import com.strumenta.kolasu.traversing.walkDescendants
 import com.strumenta.kolasu.validation.Issue
 import com.strumenta.kolasu.validation.IssueSeverity
-import kotlin.reflect.KMutableProperty1
 import kotlin.reflect.KProperty1
 
 interface ModuleFinder {
@@ -178,7 +176,7 @@ internal fun MutableList<Issue>.addIncompatibleTypesError(operatorExpression: Op
 class EntityTypeCalculator : TypeCalculator {
     var sr: SymbolResolver? = null
 
-    private fun <T:Node,S:PossiblyNamed>getTypeOfReference(
+    private fun <T : Node, S : PossiblyNamed> getTypeOfReference(
         refHolder: T,
         ref: KProperty1<T, ReferenceByName<S>?>,
     ): Type? {
@@ -252,7 +250,6 @@ class EntityTypeCalculator : TypeCalculator {
             else -> TODO("Does not know how to calculate the type of $node")
         }
     }
-
 }
 
 fun Module.semanticEnrichment(moduleFinder: ModuleFinder): List<Issue> {
